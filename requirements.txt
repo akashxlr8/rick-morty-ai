@@ -2,9 +2,10 @@ fastapi
 uvicorn
 httpx
 streamlit
-python-dotenv
 pydantic
 langchain
 langchain-openai
 sqlalchemy
 aiosqlite
+supabase
+python-dotenv
