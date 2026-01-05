@@ -9,11 +9,6 @@ st.set_page_config(page_title="Rick & Morty AI Explorer", layout="wide")
 
 st.title("🧪 Rick & Morty AI Explorer")
 
-st.markdown("""
-Welcome to the AI-powered explorer for the Rick & Morty universe.
-This frontend connects to a FastAPI backend for data processing and AI generation.
-""")
-
 # Sidebar for status
 st.sidebar.header("System Status")
 
@@ -29,18 +24,97 @@ async def check_backend_status():
         return False, str(e)
 
 # Run the check
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 is_healthy, details = loop.run_until_complete(check_backend_status())
 
 if is_healthy:
     st.sidebar.success("Backend Connected ✅")
-    st.sidebar.json(details)
 else:
     st.sidebar.error("Backend Disconnected ❌")
-    st.sidebar.warning(f"Make sure the FastAPI server is running at {BACKEND_URL}")
-    st.sidebar.code(f"Error: {details}")
+    st.stop()
 
-st.divider()
+# --- Phase 2: Data & Interaction ---
 
-st.info("Phase 1: Basic Connectivity Established. Use the sidebar to verify backend connection.")
+async def get_locations(page=1):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}/locations", params={"page": page})
+        return resp.json()
+
+async def get_notes(character_id):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}/notes/{character_id}")
+        return resp.json()
+
+async def get_notes_bulk(character_ids):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BACKEND_URL}/notes/bulk", json=character_ids)
+        return resp.json()
+
+async def add_note(character_id, content):
+    async with httpx.AsyncClient() as client:
+        await client.post(f"{BACKEND_URL}/notes", json={"character_id": character_id, "content": content})
+
+# Layout
+st.header("Locations")
+
+# Pagination (Simple)
+page = st.number_input("Page", min_value=1, value=1)
+
+locations = loop.run_until_complete(get_locations(page))
+
+# --- OPTIMIZATION START ---
+# 1. Collect all resident IDs first
+all_resident_ids = []
+if locations:
+    for loc in locations:
+        for res in loc.get("residents", []):
+            all_resident_ids.append(res['id'])
+
+# 2. Fetch all notes in ONE request
+notes_map = {}
+if all_resident_ids:
+    notes_map = loop.run_until_complete(get_notes_bulk(all_resident_ids))
+# --- OPTIMIZATION END ---
+
+if not locations:
+    st.warning("No locations found.")
+else:
+    for loc in locations:
+        with st.expander(f"{loc['name']} ({loc['type']})"):
+            st.write(f"**Dimension:** {loc['dimension']}")
+            
+            residents = loc.get("residents", [])
+            if residents:
+                st.subheader("Residents")
+                cols = st.columns(3)
+                for idx, res in enumerate(residents):
+                    with cols[idx % 3]:
+                        st.image(res['image'], width=100)
+                        st.write(f"**{res['name']}**")
+                        st.caption(f"{res['status']} - {res['species']}")
+                        
+                        # Notes Section
+                        with st.popover(f"📝 Notes for {res['name']}"):
+                            # Use the pre-fetched notes from memory
+                            notes = notes_map.get(res['id'], [])
+                            
+                            if notes:
+                                st.markdown("---")
+                                for n in notes:
+                                    st.text(f"• {n['content']}")
+                                st.markdown("---")
+                            
+                            # Add new note
+                            new_note = st.text_input(f"Add note", key=f"note_{res['id']}")
+                            if st.button("Save", key=f"save_{res['id']}"):
+                                if new_note:
+                                    loop.run_until_complete(add_note(res['id'], new_note))
+                                    st.success("Saved!")
+                                    st.rerun()
+            else:
+                st.info("No residents listed.")
