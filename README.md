@@ -1,5 +1,13 @@
 # Rick & Morty AI Explorer
-
+<div>
+    <a href="https://www.loom.com/share/c016119aeda549ca9600fa108579e28a">
+      <p>Exploring the Rick and Morty Multiverse with Generative AI - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/c016119aeda549ca9600fa108579e28a">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/c016119aeda549ca9600fa108579e28a-b196862519c22927-full-play.gif#t=0.1">
+    </a>
+  </div>
+  
 ## Setup & Run Instructions
 
 ### 1. Install Dependencies
