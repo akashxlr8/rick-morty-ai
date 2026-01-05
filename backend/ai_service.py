@@ -32,19 +32,27 @@ def get_vector_store():
         index_path = os.path.join(os.path.dirname(__file__), "vector_store")
         if os.path.exists(index_path):
             jina_key = os.environ.get("JINA_API_KEY")
+            if not jina_key:
+                print("❌ Error: JINA_API_KEY not found in environment.")
+                return None
+                
             embeddings = JinaEmbeddings(
-                jina_api_key=jina_key, model_name="jina-embeddings-v3"
+                jina_api_key=jina_key, model_name="jina-embeddings-v2-base-en"
             )
             _vector_store = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+            print(f"✅ Vector store loaded with {_vector_store.index.ntotal} documents.")
     return _vector_store
 
 async def search_knowledge_base(query: str, k: int = 4):
     """Searches the vector store for relevant documents."""
     vector_store = get_vector_store()
     if not vector_store:
+        print("⚠️ Vector store not found or failed to load.")
         return []
     
+    print(f"🔍 Embedding query: '{query}'")
     docs = vector_store.similarity_search(query, k=k)
+    print(f"✅ Found {len(docs)} documents.")
     return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
 
 class EvaluationResponse(BaseModel):
