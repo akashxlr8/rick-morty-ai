@@ -66,3 +66,6 @@ streamlit run app.py
 - **Streaming Support:** LangChain's support for streaming responses allows for real-time narration, enhancing
     user experience.
 - **Extensibility:** LangChain makes it easier to add more complex AI features in the future, such as multi-step reasoning or tool use. as well as manages single-provider lockin.
+
+## Documentation
+- [Project Walkthrough](WALKTHROUGH.md): Detailed technical deep-dive into the codebase and architecture.
