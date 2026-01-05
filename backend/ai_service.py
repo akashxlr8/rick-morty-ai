@@ -89,8 +89,13 @@ async def evaluate_summary(summary: str, original_residents: List[Dict]):
     prompt = f"""
     You are an objective evaluator. Your task is to check if the following AI-generated summary is factually consistent with the provided data.
     
-    Data (Actual Residents): {", ".join(resident_names)}
+    Data (Actual Residents): {", ".join(resident_names) if resident_names else "None listed (The location might be empty or data is missing)."}
     Generated Summary:</summary> {summary} </summary>
+
+    Rules:
+    1. If the Data list is empty, do NOT penalize the summary for describing the location's atmosphere, history, or general vibe.
+    2. Only penalize if the summary explicitly names specific characters as *current residents* who are not in the Data list.
+    3. References to "Morty" or "Rick" as part of the narration style (e.g. "It's boring, Morty!") are allowed and should NOT be counted as factual errors.
     """
     
     evaluation = await structured_llm.ainvoke(prompt)
