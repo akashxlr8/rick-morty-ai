@@ -1,16 +1,51 @@
 import os
 import json
+import toml
 from typing import List, Dict
 from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
-from dotenv import load_dotenv
+from langchain_community.embeddings import JinaEmbeddings
+from langchain_community.vectorstores import FAISS
 
-load_dotenv()
+# Try to load secrets if env var is missing
+try:
+    secrets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "secrets.toml")
+    if os.path.exists(secrets_path):
+        secrets = toml.load(secrets_path)
+        if "OPENAI_API_KEY" in secrets and "OPENAI_API_KEY" not in os.environ:
+            os.environ["OPENAI_API_KEY"] = secrets["OPENAI_API_KEY"]
+        if "JINA_API_KEY" in secrets and "JINA_API_KEY" not in os.environ:
+            os.environ["JINA_API_KEY"] = secrets["JINA_API_KEY"]
+except Exception:
+    pass
 
 # Initialize LLM using the new init_chat_model pattern from the docs
 summary_model = init_chat_model("gpt-4o-mini", temperature=0.85)
 critica_model = init_chat_model("gpt-5-nano", temperature=0)
+
+_vector_store = None
+
+def get_vector_store():
+    global _vector_store
+    if _vector_store is None:
+        index_path = os.path.join(os.path.dirname(__file__), "vector_store")
+        if os.path.exists(index_path):
+            jina_key = os.environ.get("JINA_API_KEY")
+            embeddings = JinaEmbeddings(
+                jina_api_key=jina_key, model_name="jina-embeddings-v3"
+            )
+            _vector_store = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+    return _vector_store
+
+async def search_knowledge_base(query: str, k: int = 4):
+    """Searches the vector store for relevant documents."""
+    vector_store = get_vector_store()
+    if not vector_store:
+        return []
+    
+    docs = vector_store.similarity_search(query, k=k)
+    return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
 
 class EvaluationResponse(BaseModel):
     """Response schema for the evaluation."""
