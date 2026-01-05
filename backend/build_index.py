@@ -150,7 +150,7 @@ async def main():
         return
 
     embeddings = JinaEmbeddings(
-        jina_api_key=jina_key, model_name="jina-embeddings-v3"
+        jina_api_key=jina_key, model_name="jina-embeddings-v2-base-en"
     )
     
     # Jina usually has better rate limits, but we'll still batch slightly
