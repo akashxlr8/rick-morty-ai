@@ -1,6 +1,7 @@
 import streamlit as st
 import httpx
 import asyncio
+import json
 
 # Configuration
 BACKEND_URL = "http://localhost:8000"
@@ -59,15 +60,16 @@ async def add_note(character_id, content):
     async with httpx.AsyncClient() as client:
         await client.post(f"{BACKEND_URL}/notes", json={"character_id": character_id, "content": content})
 
-async def generate_summary(name, type, residents):
+async def generate_summary_stream(name, type, residents):
     # Increased timeout to 60 seconds to accommodate multiple LLM calls (generation + evaluation)
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=None)) as client:
-        resp = await client.post(f"{BACKEND_URL}/generate-summary", json={
+        async with client.stream("POST", f"{BACKEND_URL}/generate-summary", json={
             "name": name,
             "type": type,
             "residents": residents
-        })
-        return resp.json()
+        }) as response:
+            async for chunk in response.aiter_text():
+                yield chunk
 
 # Layout
 st.header("Locations")
@@ -101,16 +103,36 @@ else:
             # AI Summary Section
             if st.button(f"🎙️ Narrate this Location", key=f"ai_{loc['id']}"):
                 with st.spinner("Rick is thinking... (or drinking)"):
-                    result = loop.run_until_complete(generate_summary(loc['name'], loc['type'], loc['residents']))
-                    
                     st.markdown("### 🗣️ Narrator's Take")
-                    st.info(result['summary'])
+                    summary_placeholder = st.empty()
+                    # Use a mutable container to avoid scoping issues
+                    state = {"full_summary": "", "evaluation_data": None}
                     
-                    st.markdown("### ⚖️ AI Evaluation")
-                    eval_data = result['evaluation']
-                    col_score, col_reason = st.columns([1, 4])
-                    col_score.metric("Consistency Score", f"{eval_data['score']}/10")
-                    col_reason.write(f"**Reasoning:** {eval_data['reasoning']}")
+                    # Consume the stream
+                    async def run_stream():
+                        accumulated = ""
+                        async for chunk in generate_summary_stream(loc['name'], loc['type'], loc['residents']):
+                            accumulated += chunk
+                            if "|||" in accumulated:
+                                parts = accumulated.split("|||")
+                                state["full_summary"] = parts[0]
+                                summary_placeholder.info(state["full_summary"])
+                                if len(parts) > 1 and parts[1]:
+                                    try:
+                                        state["evaluation_data"] = json.loads(parts[1])
+                                    except:
+                                        pass
+                            else:
+                                state["full_summary"] = accumulated
+                                summary_placeholder.info(state["full_summary"])
+                    
+                    loop.run_until_complete(run_stream())
+                    
+                    if state["evaluation_data"]:
+                        st.markdown("### ⚖️ AI Evaluation")
+                        col_score, col_reason = st.columns([1, 4])
+                        col_score.metric("Consistency Score", f"{state['evaluation_data']['score']}/10")
+                        col_reason.write(f"**Reasoning:** {state['evaluation_data']['reasoning']}")
             
             residents = loc.get("residents", [])
             if residents:

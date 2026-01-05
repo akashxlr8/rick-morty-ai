@@ -1,4 +1,5 @@
 import os
+import json
 from typing import List, Dict
 from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
@@ -16,8 +17,8 @@ class EvaluationResponse(BaseModel):
     score: int = Field(description="A score from 0 to 10 for factual consistency.")
     reasoning: str = Field(description="Explanation for the score, specifically checking if it mentioned characters not present in the data.")
 
-async def generate_location_summary(location_name: str, location_type: str, residents: List[Dict]):
-    """Generates a summary in the tone of a Rick & Morty narrator."""
+async def generate_location_summary_stream(location_name: str, location_type: str, residents: List[Dict]):
+    """Generates a summary in the tone of a Rick & Morty narrator, yielding tokens."""
     
     resident_names = [r['name'] for r in residents]
     resident_str = ", ".join(resident_names) if resident_names else "no one (it's empty, Morty!)"
@@ -41,11 +42,8 @@ async def generate_location_summary(location_name: str, location_type: str, resi
     </example>
 
     Here is the data you have:
-    
-    
     """
 
-    # Create the agent as shown in the quickstart
     agent = create_agent(
         model=summary_model,
         system_prompt=system_prompt,
@@ -53,13 +51,32 @@ async def generate_location_summary(location_name: str, location_type: str, resi
     
     input_msg = f"Location Name: {location_name}\nLocation Type: {location_type}\nKnown Residents: {resident_str}"
     
-    # Run the agent
-    response = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": input_msg}]}
-    )
+    full_summary = ""
+
+    async for event in agent.astream(
+        {"messages": [{"role": "user", "content": input_msg}]},
+        stream_mode="messages"
+    ):
+        message = event[0]
+        # Relaxed check: if it has content, yield it.
+        if hasattr(message, "content") and message.content:
+            content = message.content
+            full_summary += content
+            yield content
     
-    # Extract the content from the last message in the response
-    return response["messages"][-1].content
+    # After summary is done, run evaluation
+    evaluation = await evaluate_summary(full_summary, residents)
+    # Yield a separator and the evaluation JSON
+    yield f"|||{json.dumps(evaluation)}"
+
+async def generate_location_summary(location_name: str, location_type: str, residents: List[Dict]):
+    """Generates a summary in the tone of a Rick & Morty narrator."""
+    # Re-using the stream logic to avoid duplication
+    full_summary = ""
+    async for chunk in generate_location_summary_stream(location_name, location_type, residents):
+        if "|||" not in chunk:
+            full_summary += chunk
+    return full_summary
 
 async def evaluate_summary(summary: str, original_residents: List[Dict]):
     """Evaluates the summary for factual consistency using the modern with_structured_output pattern."""
