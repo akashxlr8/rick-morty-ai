@@ -101,7 +101,7 @@ else:
             st.write(f"**Dimension:** {loc['dimension']}")
             
             # AI Summary Section
-            if st.button(f"🎙️ Narrate this Location", key=f"ai_{loc['id']}"):
+            if st.button(f"😎 Tour this Location", key=f"ai_{loc['id']}"):
                 with st.spinner("Rick is thinking... (or drinking)"):
                     st.markdown("### 🗣️ Narrator's Take")
                     summary_placeholder = st.empty()
