@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List, Dict
 from database import init_db, add_note, get_notes, get_notes_bulk, Note
-from client import fetch_locations
-from ai_service import generate_location_summary_stream, evaluate_summary
+from client import fetch_locations, fetch_characters_by_ids, fetch_locations_by_ids
+from ai_service import generate_location_summary_stream, evaluate_summary, search_knowledge_base, get_vector_store
 from pydantic import BaseModel
 
 app = FastAPI(title="Rick & Morty AI Explorer")
@@ -13,10 +13,15 @@ class SummaryRequest(BaseModel):
     type: str
     residents: List[Dict]
 
-# Initialize Database on Startup
+class SearchRequest(BaseModel):
+    query: str
+
+# Initialize Database and Vector Store on Startup
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # Pre-load the vector store to avoid first-request timeout
+    get_vector_store()
 
 @app.get("/")
 async def read_root():
@@ -50,5 +55,34 @@ async def get_summary(request: SummaryRequest):
             generate_location_summary_stream(request.name, request.type, request.residents),
             media_type="text/event-stream"
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/search")
+async def search_endpoint(request: SearchRequest):
+    try:
+        # 1. Get semantic search results
+        raw_results = await search_knowledge_base(request.query)
+        
+        # 2. Extract IDs
+        char_ids = []
+        loc_ids = []
+        
+        for res in raw_results:
+            meta = res["metadata"]
+            if meta["type"] == "character":
+                char_ids.append(meta["id"])
+            elif meta["type"] == "location":
+                loc_ids.append(meta["id"])
+        
+        # 3. Fetch full details from GraphQL
+        characters = await fetch_characters_by_ids(char_ids)
+        locations = await fetch_locations_by_ids(loc_ids)
+        
+        return {
+            "characters": characters,
+            "locations": locations,
+            "raw_matches": raw_results # Optional: keep for debugging or relevance scores
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
