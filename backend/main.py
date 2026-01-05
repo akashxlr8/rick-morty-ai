@@ -1,9 +1,16 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
+from typing import List, Dict
 from database import init_db, add_note, get_notes, get_notes_bulk, Note
 from client import fetch_locations
+from ai_service import generate_location_summary, evaluate_summary
+from pydantic import BaseModel
 
 app = FastAPI(title="Rick & Morty AI Explorer")
+
+class SummaryRequest(BaseModel):
+    name: str
+    type: str
+    residents: List[Dict]
 
 # Initialize Database on Startup
 @app.on_event("startup")
@@ -34,3 +41,15 @@ async def read_notes(character_id: str):
 @app.post("/notes/bulk")
 async def read_notes_bulk(character_ids: List[str]):
     return get_notes_bulk(character_ids)
+
+@app.post("/generate-summary")
+async def get_summary(request: SummaryRequest):
+    try:
+        summary = await generate_location_summary(request.name, request.type, request.residents)
+        evaluation = await evaluate_summary(summary, request.residents)
+        return {
+            "summary": summary,
+            "evaluation": evaluation
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
