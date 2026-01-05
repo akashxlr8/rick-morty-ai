@@ -8,4 +8,6 @@ langchain-openai
 sqlalchemy
 aiosqlite
 supabase
+langchain-community
+faiss-cpu
 python-dotenv
