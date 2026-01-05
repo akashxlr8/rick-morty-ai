@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize LLM using the new init_chat_model pattern from the docs
-summary_model = init_chat_model("gpt-4o-mini", temperature=0.7)
+summary_model = init_chat_model("gpt-4o-mini", temperature=0.85)
 critica_model = init_chat_model("gpt-5-nano", temperature=0)
 
 class EvaluationResponse(BaseModel):
