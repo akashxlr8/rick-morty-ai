@@ -59,6 +59,16 @@ async def add_note(character_id, content):
     async with httpx.AsyncClient() as client:
         await client.post(f"{BACKEND_URL}/notes", json={"character_id": character_id, "content": content})
 
+async def generate_summary(name, type, residents):
+    # Increased timeout to 60 seconds to accommodate multiple LLM calls (generation + evaluation)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=None)) as client:
+        resp = await client.post(f"{BACKEND_URL}/generate-summary", json={
+            "name": name,
+            "type": type,
+            "residents": residents
+        })
+        return resp.json()
+
 # Layout
 st.header("Locations")
 
@@ -87,6 +97,20 @@ else:
     for loc in locations:
         with st.expander(f"{loc['name']} ({loc['type']})"):
             st.write(f"**Dimension:** {loc['dimension']}")
+            
+            # AI Summary Section
+            if st.button(f"🎙️ Narrate this Location", key=f"ai_{loc['id']}"):
+                with st.spinner("Rick is thinking... (or drinking)"):
+                    result = loop.run_until_complete(generate_summary(loc['name'], loc['type'], loc['residents']))
+                    
+                    st.markdown("### 🗣️ Narrator's Take")
+                    st.info(result['summary'])
+                    
+                    st.markdown("### ⚖️ AI Evaluation")
+                    eval_data = result['evaluation']
+                    col_score, col_reason = st.columns([1, 4])
+                    col_score.metric("Consistency Score", f"{eval_data['score']}/10")
+                    col_reason.write(f"**Reasoning:** {eval_data['reasoning']}")
             
             residents = loc.get("residents", [])
             if residents:
