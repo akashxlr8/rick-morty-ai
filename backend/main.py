@@ -61,8 +61,10 @@ async def get_summary(request: SummaryRequest):
 @app.post("/search")
 async def search_endpoint(request: SearchRequest):
     try:
+        print(f"🔎 Searching for: {request.query}")
         # 1. Get semantic search results
         raw_results = await search_knowledge_base(request.query)
+        print(f"✅ Found {len(raw_results)} raw matches from vector store.")
         
         # 2. Extract IDs
         char_ids = []
@@ -70,6 +72,7 @@ async def search_endpoint(request: SearchRequest):
         
         for res in raw_results:
             meta = res["metadata"]
+            print(f"   - Match: {meta.get('name')} ({meta.get('type')}) ID: {meta.get('id')}")
             if meta["type"] == "character":
                 char_ids.append(meta["id"])
             elif meta["type"] == "location":
@@ -78,6 +81,7 @@ async def search_endpoint(request: SearchRequest):
         # 3. Fetch full details from GraphQL
         characters = await fetch_characters_by_ids(char_ids)
         locations = await fetch_locations_by_ids(loc_ids)
+        print(f"📦 Fetched {len(characters)} characters and {len(locations)} locations from GraphQL.")
         
         return {
             "characters": characters,
@@ -85,4 +89,5 @@ async def search_endpoint(request: SearchRequest):
             "raw_matches": raw_results # Optional: keep for debugging or relevance scores
         }
     except Exception as e:
+        print(f"❌ Search Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

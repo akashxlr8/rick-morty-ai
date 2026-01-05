@@ -39,6 +39,9 @@ async def fetch_characters_by_ids(ids: list[str]):
     if not ids:
         return []
     
+    # Ensure IDs are strings
+    ids = [str(i) for i in ids]
+    
     query = """
     query ($ids: [ID!]!) {
       charactersByIds(ids: $ids) {
@@ -65,7 +68,9 @@ async def fetch_characters_by_ids(ids: list[str]):
             response = await client.post(GRAPHQL_URL, json={"query": query, "variables": variables})
             if response.status_code == 200:
                 data = response.json()
-                return data.get("data", {}).get("charactersByIds", [])
+                # Handle potential [null] response if IDs are invalid
+                results = data.get("data", {}).get("charactersByIds", [])
+                return [r for r in results if r is not None]
             return []
         except Exception as e:
             print(f"Error fetching characters: {e}")
@@ -74,6 +79,9 @@ async def fetch_characters_by_ids(ids: list[str]):
 async def fetch_locations_by_ids(ids: list[str]):
     if not ids:
         return []
+
+    # Ensure IDs are strings
+    ids = [str(i) for i in ids]
 
     query = """
     query ($ids: [ID!]!) {
@@ -99,7 +107,8 @@ async def fetch_locations_by_ids(ids: list[str]):
             response = await client.post(GRAPHQL_URL, json={"query": query, "variables": variables})
             if response.status_code == 200:
                 data = response.json()
-                return data.get("data", {}).get("locationsByIds", [])
+                results = data.get("data", {}).get("locationsByIds", [])
+                return [r for r in results if r is not None]
             return []
         except Exception as e:
             print(f"Error fetching locations: {e}")
